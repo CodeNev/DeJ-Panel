@@ -6,8 +6,11 @@
   "scripts": {
     "dev": "wrangler dev",
     "build": "tsc --noEmit",
+    "build:app": "cd app && npm install --no-audit --no-fund && npm run build",
+    "generate:assets": "node scripts/generate-static-assets.mjs",
+    "build:worker-bundle": "npm run build:app && npm run generate:assets && node scripts/build-worker.mjs",
     "build:railway": "esbuild src/railway-server.ts --bundle --platform=node --target=node20 --format=esm --outfile=dist/railway-server.js --external:better-sqlite3",
-    "deploy": "wrangler deploy",
+    "deploy": "npm run build:app && npm run generate:assets && wrangler deploy",
     "db:generate": "drizzle-kit generate",
     "db:migrate:local": "wrangler d1 migrations apply dej_panel_db --local",
     "db:migrate:remote": "wrangler d1 migrations apply dej_panel_db --remote",

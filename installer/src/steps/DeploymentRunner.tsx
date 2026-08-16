@@ -1,5 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { cfCreateD1Database } from "../providers/cloudflare-deploy";
+import {
+  cfCreateD1Database,
+  cfEnableWorkersDevSubdomain,
+  cfGetAccountWorkersSubdomain,
+  cfRunD1Migration,
+  cfUploadWorkerModule,
+  fetchInitialMigrationSql,
+  fetchWorkerBundleSource,
+} from "../providers/cloudflare-deploy";
+import { createAdminAccount, waitForWorkerHealthy } from "../providers/deploy-shared";
 import type { InstallerFormData, InstallerLogLine } from "../state/types";
 
 type Props = {
@@ -7,12 +16,20 @@ type Props = {
   accountId: string;
   formData: InstallerFormData;
   onLog: (log: InstallerLogLine) => void;
-  onResource: (resource: { type: "d1_database"; id: string; name: string }) => void;
-  onSuccess: () => void;
+  onResource: (resource: { type: "d1_database" | "worker"; id: string; name: string }) => void;
+  onSuccess: (panelUrl: string) => void;
   onFailure: (message: string, code: string) => void;
 };
 
-export function DeploymentRunner({ apiToken, accountId, formData, onLog, onResource, onSuccess, onFailure }: Props) {
+export function DeploymentRunner({
+  apiToken,
+  accountId,
+  formData,
+  onLog,
+  onResource,
+  onSuccess,
+  onFailure,
+}: Props) {
   const [lines, setLines] = useState<InstallerLogLine[]>([]);
   const started = useRef(false);
 
@@ -27,10 +44,13 @@ export function DeploymentRunner({ apiToken, accountId, formData, onLog, onResou
     started.current = true;
 
     async function run() {
+      const workerName = formData.workerName ?? "dej-panel";
+      const databaseName = formData.databaseName ?? "dej_panel_db";
+
       log("INFO", "Initializing deployment");
 
-      log("INFO", `Creating D1 database: ${formData.databaseName}`);
-      const dbResult = await cfCreateD1Database(apiToken, accountId, formData.databaseName ?? "dej_panel_db");
+      log("INFO", `Creating D1 database: ${databaseName}`);
+      const dbResult = await cfCreateD1Database(apiToken, accountId, databaseName);
       if (!dbResult.ok) {
         log("ERROR", `D1 creation failed: ${dbResult.message}`);
         onFailure(dbResult.message, dbResult.code);
@@ -39,14 +59,83 @@ export function DeploymentRunner({ apiToken, accountId, formData, onLog, onResou
       log("INFO", `D1 database created (${dbResult.data.uuid})`);
       onResource({ type: "d1_database", id: dbResult.data.uuid, name: dbResult.data.name });
 
-      log("INFO", "Worker deployment requires the built application bundle.");
-      log(
-        "WARN",
-        "This installer prepared your database and account — pushing the actual Worker code (git clone + wrangler deploy or GitHub Actions) is the next automated step, since a static GitHub Pages page cannot upload a full Worker bundle by itself."
-      );
-      log("INFO", "Applying migrations to the new D1 database is required before first use.");
+      log("INFO", "Fetching latest published Worker bundle from GitHub");
+      const bundleResult = await fetchWorkerBundleSource();
+      if (!bundleResult.ok) {
+        log("ERROR", bundleResult.message);
+        onFailure(bundleResult.message, bundleResult.code);
+        return;
+      }
+      log("INFO", `Worker bundle fetched (${(bundleResult.data.length / 1024).toFixed(0)} KB)`);
 
-      onSuccess();
+      log("INFO", `Uploading Worker script: ${workerName}`);
+      const uploadResult = await cfUploadWorkerModule(
+        apiToken,
+        accountId,
+        workerName,
+        bundleResult.data,
+        dbResult.data.uuid
+      );
+      if (!uploadResult.ok) {
+        log("ERROR", `Worker upload failed: ${uploadResult.message}`);
+        onFailure(uploadResult.message, uploadResult.code);
+        return;
+      }
+      log("INFO", "Worker script uploaded successfully");
+      onResource({ type: "worker", id: uploadResult.data.id, name: workerName });
+
+      log("INFO", "Applying database migrations");
+      const migrationSqlResult = await fetchInitialMigrationSql();
+      if (!migrationSqlResult.ok) {
+        log("ERROR", migrationSqlResult.message);
+        onFailure(migrationSqlResult.message, migrationSqlResult.code);
+        return;
+      }
+      const migrateResult = await cfRunD1Migration(apiToken, accountId, dbResult.data.uuid, migrationSqlResult.data);
+      if (!migrateResult.ok) {
+        log("ERROR", `Migration failed: ${migrateResult.message}`);
+        onFailure(migrateResult.message, migrateResult.code);
+        return;
+      }
+      log("INFO", `Migration applied (${migrateResult.data.statementsRun} statements)`);
+
+      log("INFO", "Enabling workers.dev subdomain");
+      const enableResult = await cfEnableWorkersDevSubdomain(apiToken, accountId, workerName);
+      if (!enableResult.ok) {
+        log("WARN", `Could not auto-enable workers.dev subdomain: ${enableResult.message}`);
+      }
+
+      const subdomainResult = await cfGetAccountWorkersSubdomain(apiToken, accountId);
+      const subdomain = subdomainResult.ok ? subdomainResult.data.subdomain : null;
+      if (!subdomain) {
+        log("ERROR", "Could not determine your workers.dev subdomain.");
+        onFailure("Could not determine workers.dev subdomain.", "DOMAIN_VERIFICATION_FAILED");
+        return;
+      }
+
+      const panelUrl = `https://${workerName}.${subdomain}.workers.dev`;
+      log("INFO", `Panel URL: ${panelUrl}`);
+
+      log("INFO", "Waiting for deployment to become healthy");
+      const healthy = await waitForWorkerHealthy(panelUrl);
+      if (!healthy) {
+        log("ERROR", "Health check did not pass in time.");
+        onFailure("Deployment did not become healthy in time.", "HEALTH_CHECK_FAILED");
+        return;
+      }
+      log("INFO", "Health check passed");
+
+      if (formData.adminUsername && formData.adminPassword) {
+        log("INFO", "Creating initial admin account");
+        const adminResult = await createAdminAccount(panelUrl, formData.adminUsername, formData.adminPassword);
+        if (!adminResult.ok) {
+          log("WARN", `Admin creation failed: ${adminResult.message}. You can retry this from the panel directly.`);
+        } else {
+          log("INFO", "Admin account created");
+        }
+      }
+
+      onSuccess(panelUrl);
     }
 
     run().catch((err) => {

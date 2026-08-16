@@ -11,6 +11,7 @@ import { dashboardRoutes } from "./api/dashboard.routes";
 import { ok, newRequestId } from "./utils/response";
 import { runHealthCheckForAllNodes } from "./nodes/node.service";
 import { recomputeExpiredStatuses } from "./subscriptions/subscription.service";
+import { staticAssets } from "./generated/static-assets";
 import type { Bindings, AppVariables } from "./types/env";
 
 const app = new Hono<{ Bindings: Bindings; Variables: AppVariables }>();
@@ -69,7 +70,22 @@ app.route("/sub", subscriptionRoutes);
 app.route("/api/nodes", nodeRoutes);
 app.route("/api/dashboard", dashboardRoutes);
 
-app.get("*", (c) => c.env.ASSETS.fetch(c.req.raw));
+app.get("*", (c) => {
+  const url = new URL(c.req.url);
+  const asset = staticAssets[url.pathname] ?? staticAssets["/index.html"];
+
+  if (!asset) {
+    return c.text("Not found", 404);
+  }
+
+  const body: BodyInit = asset.isText ? (asset.content as string) : (asset.content as Uint8Array);
+  return new Response(body, {
+    headers: {
+      "Content-Type": asset.contentType,
+      "Cache-Control": url.pathname === "/index.html" || url.pathname === "/" ? "no-cache" : "public, max-age=31536000, immutable",
+    },
+  });
+});
 
 export default {
   fetch: app.fetch,

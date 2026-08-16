@@ -5,10 +5,12 @@ import { runPrerequisiteChecks } from "./state/prerequisites";
 import { persistInstallerState } from "./state/persistence";
 import { PlatformSelection } from "./steps/PlatformSelection";
 import { CloudflareAuthentication } from "./steps/CloudflareAuthentication";
+import { RailwayAuthentication } from "./steps/RailwayAuthentication";
 import { ProjectConfiguration } from "./steps/ProjectConfiguration";
 import { SecurityConfiguration } from "./steps/SecurityConfiguration";
 import { ReviewScreen } from "./steps/ReviewScreen";
 import { DeploymentRunner } from "./steps/DeploymentRunner";
+import { RailwayDeploymentRunner } from "./steps/RailwayDeploymentRunner";
 import { CompletionScreen, FailedScreen } from "./steps/ResultScreens";
 import type { InstallerLocale } from "./i18n";
 import { t } from "./i18n";
@@ -48,6 +50,15 @@ export default function App() {
     dispatch({ type: "NEXT_STEP" });
   }
 
+  function handleRailwayVerified(apiToken: string, accountId: string, accountName: string) {
+    dispatch({ type: "SET_CREDENTIALS", apiToken, accountId });
+    dispatch({
+      type: "ADD_LOG",
+      log: { timestamp: Date.now(), level: "INFO", message: `Railway account verified: ${accountName}` },
+    });
+    dispatch({ type: "NEXT_STEP" });
+  }
+
   function handleDeploymentFailure(message: string, code: string) {
     dispatch({
       type: "FAIL",
@@ -56,10 +67,10 @@ export default function App() {
         message,
         failedStep: "DEPLOYMENT",
         possibleCauses: [
-          "Invalid or expired Cloudflare API token",
+          "Invalid or expired API token",
           "Insufficient token permissions",
           "Resource name conflict",
-          "Cloudflare API rate limiting",
+          "Platform API rate limiting",
           "Network or CORS restriction from GitHub Pages",
         ],
         requestId: crypto.randomUUID(),
@@ -118,6 +129,10 @@ export default function App() {
               <CloudflareAuthentication locale={locale} onVerified={handleCloudflareVerified} />
             )}
 
+            {currentStep === "AUTHENTICATION" && state.platform === "railway" && (
+              <RailwayAuthentication locale={locale} onVerified={handleRailwayVerified} />
+            )}
+
             {currentStep === "ACCOUNT_VALIDATION" && (
               <div className="dej-step">
                 <p className="dej-mono">Account: {state.credentials?.accountId}</p>
@@ -174,7 +189,28 @@ export default function App() {
                   onResource={(resource) =>
                     dispatch({ type: "ADD_RESOURCE", resource: { ...resource, createdAt: Date.now() } })
                   }
-                  onSuccess={() => dispatch({ type: "NEXT_STEP" })}
+                  onSuccess={(panelUrl) => {
+                    dispatch({ type: "SET_DEPLOYMENT_URL", url: panelUrl });
+                    dispatch({ type: "NEXT_STEP" });
+                  }}
+                  onFailure={handleDeploymentFailure}
+                />
+              )}
+
+            {(currentStep === "DEPLOYMENT" || currentStep === "DEPLOYMENT_MONITORING") &&
+              state.platform === "railway" &&
+              state.credentials && (
+                <RailwayDeploymentRunner
+                  apiToken={state.credentials.apiToken}
+                  formData={state.formData}
+                  onLog={(log) => dispatch({ type: "ADD_LOG", log })}
+                  onResource={(resource) =>
+                    dispatch({ type: "ADD_RESOURCE", resource: { ...resource, createdAt: Date.now() } })
+                  }
+                  onSuccess={(panelUrl) => {
+                    dispatch({ type: "SET_DEPLOYMENT_URL", url: panelUrl });
+                    dispatch({ type: "NEXT_STEP" });
+                  }}
                   onFailure={handleDeploymentFailure}
                 />
               )}

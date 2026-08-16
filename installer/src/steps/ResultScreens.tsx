@@ -7,7 +7,16 @@ type SuccessProps = {
 export function CompletionScreen({ state }: SuccessProps) {
   return (
     <div className="dej-step">
-      <h2>DeJ Panel installation prepared</h2>
+      <h2>DeJ Panel installed successfully 🎉</h2>
+
+      {state.deploymentUrl && (
+        <div className="dej-error-box" style={{ borderColor: "var(--dej-success)", background: "color-mix(in srgb, var(--dej-success) 12%, transparent)" }}>
+          <p className="dej-mono" dir="ltr">
+            {state.deploymentUrl}
+          </p>
+        </div>
+      )}
+
       <ul className="dej-prereq-list">
         <li className="dej-prereq">
           <strong>Platform</strong>
@@ -20,9 +29,22 @@ export function CompletionScreen({ state }: SuccessProps) {
           </li>
         ))}
       </ul>
-      <a className="dej-link-button" href="https://github.com/CodeNev/DeJ-Panel" target="_blank" rel="noreferrer noopener">
-        View GitHub
-      </a>
+
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {state.deploymentUrl && (
+          <a className="dej-link-button" href={state.deploymentUrl} target="_blank" rel="noreferrer noopener">
+            Open Panel
+          </a>
+        )}
+        {state.deploymentUrl && (
+          <button type="button" onClick={() => navigator.clipboard.writeText(state.deploymentUrl ?? "")}>
+            Copy URL
+          </button>
+        )}
+        <a className="dej-link-button" href="https://github.com/CodeNev/DeJ-Panel" target="_blank" rel="noreferrer noopener">
+          View GitHub
+        </a>
+      </div>
     </div>
   );
 }

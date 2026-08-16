@@ -130,3 +130,87 @@
 4. مستندات جدا در `/docs` (installation.md، security.md، api.md، ...)
 5. CHANGELOG.md، CONTRIBUTING.md، SECURITY.md
 6. تست‌های frontend (React Testing Library) برای صفحات app/ و installer UI کامپوننت‌ها
+
+## مرحله ۶: دیپلوی کاملاً خودکار از مرورگر — بدون CLI/ترمینال — انجام شد
+
+این مرحله دقیقاً محدودیت مرحله‌ی قبل (که در بندهای "⚠️" بالا صادقانه اعلام شده بود) را
+با یک تکنیک واقعی و رایج در پروژه‌های مشابه (BPB-Wizard، Nova-Wizard) حل می‌کند:
+
+### مشکل قبلی
+دیپلوی واقعی Worker به `wrangler deploy` نیاز داشت که یک ابزار CLI است و از مرورگر/GitHub
+Pages قابل اجرا نیست.
+
+### راه‌حل پیاده‌شده
+1. **`scripts/generate-static-assets.mjs`**: خروجی build داشبورد ادمین (`app/dist`) را
+   می‌خواند و به یک ماژول TypeScript تبدیل می‌کند که تمام فایل‌ها (HTML/CSS/JS) را به‌صورت
+   رشته/Base64 در خودش نگه می‌دارد (`src/generated/static-assets.ts`)
+2. **`src/index.ts`** دیگر به `wrangler [assets]` وابسته نیست؛ مسیر fallback حالا مستقیماً
+   از همین map داخلی سرو می‌کند — یعنی کل فرانت‌اند ادمین *داخل* خود کد Worker جاسازی شده
+3. **`scripts/build-worker.mjs`**: با esbuild کل `src/index.ts` (شامل همان static assets
+   جاسازی‌شده) را به یک فایل ES module خودکفا و minify‌شده باندل می‌کند
+   (`dist/worker-bundle.js`, ~۳۸۰ کیلوبایت — build واقعی گرفته شد و تایید شد)
+4. **`.github/workflows/publish-worker-bundle.yml`**: با هر push به `main` که کد را تغییر
+   دهد، این باندل را می‌سازد و به‌صورت خودکار به همان مسیر در `main` کامیت می‌کند — بنابراین
+   همیشه از طریق `raw.githubusercontent.com/CodeNev/DeJ-Panel/main/dist/worker-bundle.js`
+   قابل fetch عمومی است (این دامنه CORS باز دارد، بر خلاف بسیاری از endpoint های دیگر)
+5. **`installer/src/providers/cloudflare-deploy.ts`** با توابع واقعی جدید گسترش یافت:
+   - `fetchWorkerBundleSource()` / `fetchInitialMigrationSql()`: گرفتن باندل و SQL از گیت‌هاب
+   - `cfUploadWorkerModule()`: آپلود مستقیم باندل به Cloudflare با یک درخواست
+     `PUT /accounts/{id}/workers/scripts/{name}` (multipart، شامل binding واقعی D1)
+     — دقیقاً همان مکانیزم داخلی `wrangler deploy`، بدون نیاز به آن
+   - `cfRunD1Migration()`: اجرای مایگریشن با فراخوانی مستقیم D1 Query API
+     (`POST /d1/database/{id}/query`) به‌ازای هر statement
+   - `cfEnableWorkersDevSubdomain()` / `cfGetAccountWorkersSubdomain()`: فعال‌سازی و گرفتن
+     آدرس نهایی `*.workers.dev`
+   - `waitForWorkerHealthy()`: polling با backoff روی `/health`
+   - `createAdminAccount()`: فراخوانی `/api/install/admin` روی پنل تازه‌دیپلوی‌شده
+6. **`DeploymentRunner.tsx`** کاملاً بازنویسی شد تا این ۸ مرحله را پشت‌سرهم و با Live Log
+   واقعی اجرا کند — کاربر از اول تا آخر فقط توکن می‌دهد و منتظر می‌ماند، هیچ دستوری نمی‌زند
+7. صفحه‌ی پایانی (`CompletionScreen`) حالا آدرس نهایی پنل را نشان می‌دهد با دکمه‌ی
+   Open Panel / Copy URL
+
+### تایید عملی
+- `npx tsc --noEmit` روی پنل اصلی: بدون خطا
+- `node scripts/build-worker.mjs`: باندل با موفقیت ساخته شد (۳۸۰ کیلوبایت، شامل کل ادمین پنل)
+- `npx tsc --noEmit` + `npx vite build` + `npx vitest run` روی اینستالر: همه موفق
+
+### محدودیت باقی‌مانده (صادقانه)
+- این جریان فقط برای **Cloudflare** پیاده‌سازی شده. Railway چون از D1 پشتیبانی نمی‌کند و
+  دیپلویش نیازمند build کردن یک ایمیج Docker است، از این تکنیک (آپلود مستقیم یک فایل به
+  API) نمی‌تواند به همین شکل استفاده کند — دیپلوی Railway همچنان از طریق Railway
+  Dashboard (که خودش هیچ CLI نمی‌خواهد، فقط اتصال ریپو) یا GitHub Actions انجام می‌شود.
+- اگر مخزن هنوز private باشد یا هنوز هیچ push‌ای به `main` نرفته باشد،
+  `raw.githubusercontent.com/.../dist/worker-bundle.js` هنوز وجود ندارد و اینستالر با پیام
+  خطای واضح (`PLATFORM_NOT_FOUND`, "may not have been published by CI yet") این حالت را
+  به‌درستی گزارش می‌دهد، نه اینکه سکوت کند یا crash کند.
+
+## مرحله ۷: مسیر Railway در اینستالر — بدون CLI — انجام شد
+
+مسیر Cloudflare قبلاً کاملاً خودکار شده بود؛ همین الگو برای Railway هم پیاده‌سازی شد
+(با تکنیک متفاوت چون Railway معماری متفاوتی دارد):
+
+- **`installer/src/providers/railway-client.ts`**: کلاینت واقعی مرورگر برای Railway
+  GraphQL API v2 — احراز هویت (`me`)، `projectCreate`، `serviceCreate` (مستقیم از روی
+  ریپوی گیت‌هابِ `CodeNev/DeJ-Panel` — Railway خودش `Dockerfile` موجود در ریپو را پیدا و
+  بیلد می‌کند)، `variableCollectionUpsert`، `serviceDomainCreate`،
+  `serviceInstanceDeployV2`، و polling وضعیت دیپلوی
+- **`installer/src/steps/RailwayAuthentication.tsx`**: صفحه‌ی دریافت/تایید توکن Railway
+  (لینک مستقیم به `railway.app/account/tokens`)
+- **`installer/src/steps/RailwayDeploymentRunner.tsx`**: ارکستریشن کامل ۸ مرحله‌ای مشابه
+  نسخه‌ی Cloudflare، با Live Log واقعی: ساخت پروژه → ساخت سرویس از ریپو → متغیرهای محیطی →
+  ساخت دامنه → trigger دیپلوی → polling وضعیت build (تا ۳ دقیقه) → health check → ساخت ادمین
+- منطق مشترک بین دو مسیر (`waitForWorkerHealthy`, `createAdminAccount`) به
+  `installer/src/providers/deploy-shared.ts` منتقل شد تا تکراری نباشد (بند ۲۰۷)
+- `App.tsx` برای هر دو پلتفرم در مراحل AUTHENTICATION و DEPLOYMENT/DEPLOYMENT_MONITORING
+  سیم‌کشی شد
+
+### محدودیت صادقانه
+برای اینکه Railway بتواند مستقیم از روی ریپوی گیت‌هاب سرویس بسازد، ریپو باید **public**
+باشد یا از قبل (یک‌بار، از داشبورد Railway) GitHub App وصل شده باشد — این یک محدودیت
+واقعی امنیتی خود Railway است (برای جلوگیری از build خودکار ریپوهای ناشناس)، نه محدودیت
+این کد.
+
+### تایید عملی
+- `npx tsc --noEmit` روی اینستالر: بدون خطا
+- `npx vite build` روی اینستالر: موفق
+- `npx vitest run` (پنل اصلی + اینستالر): هر ۱۹+۴ تست pass

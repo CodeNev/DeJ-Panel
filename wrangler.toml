@@ -9,11 +9,6 @@ database_name = "dej_panel_db"
 database_id = "REPLACE_WITH_D1_DATABASE_ID"
 migrations_dir = "migrations"
 
-[assets]
-directory = "app/dist"
-binding = "ASSETS"
-not_found_handling = "single-page-application"
-
 [vars]
 APP_ENV = "production"
 APP_VERSION = "0.1.0"
