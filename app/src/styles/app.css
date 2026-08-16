@@ -1,0 +1,364 @@
+:root {
+  --dej-radius: 12px;
+}
+
+[data-theme="dark"] {
+  --dej-bg: #0b0e14;
+  --dej-surface: #131722;
+  --dej-surface-2: #1a1f2e;
+  --dej-border: #232838;
+  --dej-text: #e6e8ee;
+  --dej-text-muted: #8b93a7;
+  --dej-accent: #4f7cff;
+  --dej-success: #33c17c;
+  --dej-warning: #e3a63c;
+  --dej-error: #e35d5d;
+}
+
+[data-theme="light"] {
+  --dej-bg: #f5f6f9;
+  --dej-surface: #ffffff;
+  --dej-surface-2: #f0f1f5;
+  --dej-border: #e2e5ec;
+  --dej-text: #14161c;
+  --dej-text-muted: #5c6274;
+  --dej-accent: #3a63e0;
+  --dej-success: #1f9e63;
+  --dej-warning: #b3791f;
+  --dej-error: #c0392b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--dej-bg);
+  color: var(--dej-text);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+html[lang="fa"] body {
+  font-family: "Vazir", "Vazirmatn", system-ui, sans-serif;
+}
+
+.dej-app-shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+.dej-sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  background: var(--dej-surface);
+  border-inline-end: 1px solid var(--dej-border);
+  padding: 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.dej-brand-title {
+  font-weight: 800;
+  font-size: 18px;
+}
+
+.dej-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dej-nav-link {
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: var(--dej-text-muted);
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.dej-nav-link:hover {
+  background: var(--dej-surface-2);
+}
+
+.dej-nav-active {
+  background: var(--dej-surface-2);
+  color: var(--dej-accent);
+  font-weight: 600;
+}
+
+.dej-sidebar-footer {
+  margin-top: auto;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.dej-content {
+  flex: 1;
+  padding: 24px;
+  max-width: 1100px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.dej-drawer-toggle {
+  display: none;
+}
+
+@media (max-width: 860px) {
+  .dej-sidebar {
+    position: fixed;
+    inset-inline-start: -280px;
+    top: 0;
+    bottom: 0;
+    z-index: 40;
+    transition: inset-inline-start 0.2s ease;
+  }
+  .dej-sidebar-open {
+    inset-inline-start: 0;
+  }
+  .dej-drawer-toggle {
+    display: block;
+    position: fixed;
+    top: 12px;
+    inset-inline-start: 12px;
+    z-index: 50;
+    background: var(--dej-surface);
+    border: 1px solid var(--dej-border);
+    border-radius: 8px;
+    padding: 6px 10px;
+    color: var(--dej-text);
+  }
+  .dej-content {
+    padding-top: 60px;
+  }
+}
+
+.dej-center-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.dej-card {
+  background: var(--dej-surface);
+  border: 1px solid var(--dej-border);
+  border-radius: var(--dej-radius);
+  padding: 24px;
+}
+
+.dej-login-card {
+  width: 100%;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dej-field-label {
+  font-size: 13px;
+  color: var(--dej-text-muted);
+  margin: 10px 0 4px;
+}
+
+.dej-input,
+select.dej-input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--dej-border);
+  background: var(--dej-surface-2);
+  color: var(--dej-text);
+}
+
+.dej-mono {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.dej-primary-button {
+  margin-top: 16px;
+  background: var(--dej-accent);
+  color: white;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.dej-primary-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.dej-error-box {
+  background: color-mix(in srgb, var(--dej-error) 15%, transparent);
+  border: 1px solid var(--dej-error);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-top: 8px;
+  font-size: 14px;
+}
+
+.dej-platform-badge {
+  display: inline-block;
+  font-size: 13px;
+  color: var(--dej-text-muted);
+  background: var(--dej-surface);
+  border: 1px solid var(--dej-border);
+  padding: 6px 12px;
+  border-radius: 999px;
+  margin-bottom: 16px;
+  font-family: monospace;
+  direction: ltr;
+}
+
+.dej-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+@media (max-width: 640px) {
+  .dej-stat-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.dej-stat-card {
+  background: var(--dej-surface);
+  border: 1px solid var(--dej-border);
+  border-radius: var(--dej-radius);
+  padding: 18px;
+}
+
+.dej-stat-value {
+  font-size: 28px;
+  font-weight: 800;
+}
+
+.dej-stat-label {
+  color: var(--dej-text-muted);
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+.dej-empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--dej-text-muted);
+}
+
+.dej-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--dej-border);
+  border-radius: var(--dej-radius);
+}
+
+.dej-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.dej-table th,
+.dej-table td {
+  text-align: start;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--dej-border);
+}
+
+.dej-table th {
+  color: var(--dej-text-muted);
+  font-weight: 600;
+  background: var(--dej-surface-2);
+}
+
+.dej-row-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.dej-row-actions button {
+  background: var(--dej-surface-2);
+  border: 1px solid var(--dej-border);
+  color: var(--dej-text);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.dej-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  border: 1px solid var(--dej-border);
+}
+
+.dej-badge-active {
+  color: var(--dej-success);
+  border-color: var(--dej-success);
+}
+
+.dej-badge-disabled,
+.dej-badge-revoked {
+  color: var(--dej-text-muted);
+}
+
+.dej-badge-expired,
+.dej-badge-limit_reached {
+  color: var(--dej-warning);
+  border-color: var(--dej-warning);
+}
+
+.dej-badge-online {
+  color: var(--dej-success);
+  border-color: var(--dej-success);
+}
+
+.dej-badge-offline {
+  color: var(--dej-error);
+  border-color: var(--dej-error);
+}
+
+.dej-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.dej-modal {
+  background: var(--dej-surface);
+  border-radius: var(--dej-radius);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.dej-qr-image {
+  border-radius: 8px;
+  background: white;
+  padding: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}

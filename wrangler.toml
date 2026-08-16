@@ -1,0 +1,26 @@
+name = "dej-panel"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "dej_panel_db"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+migrations_dir = "migrations"
+
+[assets]
+directory = "app/dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
+[vars]
+APP_ENV = "production"
+APP_VERSION = "0.1.0"
+DEPLOYMENT_PLATFORM = "cloudflare"
+
+[triggers]
+crons = ["*/15 * * * *"]
+
+[observability]
+enabled = true
